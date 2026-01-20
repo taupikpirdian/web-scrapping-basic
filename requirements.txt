@@ -1,0 +1,9 @@
+# Web Scraping
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Python Version: 3.9+
+# Note: zoneinfo is included in Python 3.9+ standard library
+# For Python < 3.9, uncomment the following:
+# backports.zoneinfo==0.2.1
