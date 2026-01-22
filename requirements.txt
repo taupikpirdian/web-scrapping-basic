@@ -3,6 +3,10 @@ requests==2.31.0
 beautifulsoup4==4.12.2
 lxml==4.9.3
 
+# Database (Optional - install if using database)
+mysql-connector-python==8.0.33
+# psycopg2-binary==2.9.6  # Uncomment for PostgreSQL
+
 # Python Version: 3.9+
 # Note: zoneinfo is included in Python 3.9+ standard library
 # For Python < 3.9, uncomment the following:
