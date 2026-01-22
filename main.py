@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 
 from src.models.database import save_market_data
 from src.services.market_scraper import scrape_market

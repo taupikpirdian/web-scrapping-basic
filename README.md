@@ -40,6 +40,61 @@ web-scrapping-basic/
 
 ## Installation
 
+### Option 1: Docker (Recommended untuk Production)
+
+Docker adalah cara yang disarankan untuk menjalankan scraper di production server. Tidak perlu install Python atau dependencies secara manual.
+
+**Prasyarat:**
+- Docker dan Docker Compose terinstall di server
+- MySQL sudah berjalan di server
+
+**Setup:**
+
+1. Build dan jalankan container:
+```bash
+# Build image
+docker build -t market-scraper .
+
+# Atau gunakan docker-compose (lebih mudah)
+docker-compose up
+```
+
+2. Jalankan dengan docker-compose:
+```bash
+# Jalankan scraper
+docker-compose run --rm market-scraper
+
+# Atau jalankan di background
+docker-compose up -d
+```
+
+3. Setup cron job di server untuk menjalankan scraper secara berkala:
+```bash
+# Edit crontab
+crontab -e
+
+# Tambahkan salah satu dari opsi berikut:
+
+# Opsi 1: Gunakan script run-scraper.sh (recommended)
+*/30 * * * * /path/to/web-scrapping-basic/run-scraper.sh >> /var/log/market-scraper.log 2>&1
+
+# Opsi 2: Jalankan setiap jam
+0 * * * * cd /path/to/web-scrapping-basic && /usr/local/bin/docker-compose run --rm market-scraper
+
+# Opsi 3: Setiap 30 menit
+*/30 * * * * cd /path/to/web-scrapping-basic && /usr/local/bin/docker-compose run --rm market-scraper
+
+# Opsi 4: Setiap hari jam 08:00 dan 16:00
+0 8,16 * * * cd /path/to/web-scrapping-basic && /usr/local/bin/docker-compose run --rm market-scraper
+```
+
+**Tips Cron:**
+- `>> /var/log/market-scraper.log 2>&1` akan menyimpan output ke log file
+- Cek log dengan: `tail -f /var/log/market-scraper.log`
+- Cek cron job yang aktif dengan: `crontab -l`
+
+### Option 2: Python Virtual Environment (Untuk Development)
+
 1. Create virtual environment:
 ```bash
 python -m venv venv
@@ -67,18 +122,81 @@ pip install psycopg2-binary
 
 ## Usage
 
-### Scrape ke JSON
+### Dengan Docker
+
+1. Setup environment variables:
+```bash
+cp .env.example .env
+# Edit .env sesuai konfigurasi database MySQL Anda
+```
+
+Contoh `.env` untuk Docker:
+```env
+DB_TYPE=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=your_mysql_user
+DB_PASSWORD=your_mysql_password
+DB_NAME=myorbit_market_data
+EMITEN_LIST=bbca,indf,tlkm,unvr
+```
+
+2. Jalankan database migration:
+
+**Opsi 1: Menggunakan helper script (paling mudah)**
+```bash
+# Script akan otomatis baca konfigurasi dari .env
+./run-migration.sh
+```
+
+**Opsi 2: Menggunakan Python script**
+```bash
+# Menggunakan script Python dengan parameter
+python migrations/run_migration.py --database mysql --user root --db myorbit_market_data --password your_password
+
+# Atau gunakan env var untuk password
+export DB_PASSWORD=your_password
+python migrations/run_migration.py --database mysql --user root --db myorbit_market_data
+```
+
+**Opsi 3: Menggunakan MySQL command langsung**
+```bash
+mysql -u root -p myorbit_market_data < migrations/001_create_market_data_table_mysql.sql
+```
+
+3. Jalankan scraper:
+```bash
+# Jalankan sekali
+docker-compose run --rm market-scraper
+
+# Atau dengan docker command langsung
+docker run --rm \
+  --network host \
+  -e DB_HOST=localhost \
+  -e DB_USER=root \
+  -e DB_PASSWORD=your_password \
+  -e DB_NAME=myorbit_market_data \
+  -e EMITEN_LIST=bbca,indf \
+  market-scraper
+```
+
+### Tanpa Docker (Development)
+
+#### Scrape ke JSON
 
 Konfigurasi daftar emiten yang ingin di-scrape melalui file `.env` (variable `EMITEN_LIST`).
 
 ```bash
+# Aktifkan virtual environment
+source venv/bin/activate
+
 # Jalankan scraper
 python main.py
 ```
 
 Output akan disimpan di `market_data.json`.
 
-### Scrape dan Simpan ke Database
+#### Scrape dan Simpan ke Database
 
 1. Setup environment variables:
 ```bash
@@ -130,6 +248,78 @@ SELECT * FROM market_data
 WHERE date_time_scraping >= '2025-01-01'
   AND date_time_scraping < '2025-02-01'
 ORDER BY date_time_scraping DESC;
+```
+
+## Deployment dengan Docker
+
+### Keuntungan Menggunakan Docker
+
+✓ **Tidak perlu install Python** di server - semua dependencies sudah dibungkus dalam Docker image
+✓ **Environment yang konsisten** - development dan production menggunakan environment yang sama
+✓ **Isolasi** - scraper tidak mengganggu aplikasi lain di server
+✓ **Easy rollback** - bisa dengan mudah kembali ke versi sebelumnya
+✓ **Scalable** - mudah untuk scaling jika diperlukan
+
+### Langkah Deployment di Server
+
+1. **Upload code ke server:**
+```bash
+scp -r /path/to/web-scrapping-basic user@server:/opt/
+```
+
+2. **Setup database:**
+```bash
+# Login ke server
+ssh user@server
+
+# Buat database
+mysql -u root -p
+CREATE DATABASE myorbit_market_data;
+
+# Jalankan migration
+cd /opt/web-scrapping-basic
+
+# Opsi 1: Menggunakan Python script (recommended)
+python migrations/run_migration.py --database mysql --user root --db myorbit_market_data --password your_password
+
+# Opsi 2: Menggunakan MySQL command
+mysql -u root -p myorbit_market_data < migrations/001_create_market_data_table_mysql.sql
+```
+
+3. **Setup environment:**
+```bash
+cd /opt/web-scrapping-basic
+cp .env.example .env
+nano .env  # Edit sesuai konfigurasi
+```
+
+4. **Build Docker image:**
+```bash
+docker-compose build
+```
+
+5. **Test run:**
+```bash
+docker-compose run --rm market-scraper
+```
+
+6. **Setup cron:**
+```bash
+crontab -e
+# Tambahkan:
+*/30 * * * * /opt/web-scrapping-basic/run-scraper.sh >> /var/log/market-scraper.log 2>&1
+```
+
+7. **Monitoring:**
+```bash
+# Cek log
+tail -f /var/log/market-scraper.log
+
+# Cek apakah cron jalan
+grep CRON /var/log/syslog
+
+# Cek data di database
+mysql -u root -p -e "SELECT * FROM myorbit_market_data.market_data ORDER BY date_time_scraping DESC LIMIT 10;"
 ```
 
 ## Features

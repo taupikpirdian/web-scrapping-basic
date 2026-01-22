@@ -1,0 +1,17 @@
+services:
+  market-scraper:
+    build: .
+    container_name: market-scraper
+    restart: "no"  # Cron will handle the restart
+    network_mode: host  # Use host network to connect to MySQL on server
+
+    # Load all environment variables from .env file
+    env_file:
+      - .env
+
+    volumes:
+      # Mount output directory to persist JSON output
+      - ./output:/app/output
+
+    # Command will be overridden by cron
+    command: ["python", "main.py", "--save-db"]
